@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OmniScan Pro | Product Barcode & QR Scanner</title>
+    <meta name="description" content="Instant high-speed browser-based barcode and product scanner with live API lookup and scan history.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons Font -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/font/lucide.min.css">
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Header Navigation -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">
+                    <i class="icon-scan-line"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>OmniScan<span class="highlight">Pro</span></h1>
+                    <span class="tagline">Smart Barcode & Product Intelligence</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="soundToggleBtn" class="icon-btn active" title="Toggle Scan Sound" aria-label="Toggle Sound">
+                    <i class="icon-volume-2"></i>
+                </button>
+                <button id="vibrateToggleBtn" class="icon-btn active" title="Toggle Vibration" aria-label="Toggle Vibration">
+                    <i class="icon-smartphone"></i>
+                </button>
+                <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
+                    <i class="icon-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Webhook Integration Bar -->
+        <div class="webhook-bar glass-panel">
+            <div class="webhook-header">
+                <div class="webhook-status">
+                    <span class="webhook-dot active" id="webhookStatusDot"></span>
+                    <i class="icon-send"></i>
+                    <span class="webhook-title">Webhook Integration</span>
+                </div>
+                <div class="webhook-controls">
+                    <button id="webhookToggleBtn" class="glass-btn small-btn active" title="Toggle Webhook Auto-Send">
+                        <i class="icon-check-circle"></i> <span id="webhookToggleText">Auto-Post Active</span>
+                    </button>
+                    <button id="testWebhookBtn" class="secondary-btn small-btn" title="Test Webhook Connection">
+                        <i class="icon-send"></i> Test Ping
+                    </button>
+                </div>
+            </div>
+            <div class="webhook-url-wrapper">
+                <i class="icon-link"></i>
+                <input type="url" id="webhookUrlInput" value="https://polytomous-somberly-rosana.ngrok-free.dev/webhook-test/add-product" placeholder="Enter Webhook URL...">
+                <span class="webhook-badge" id="webhookResponseBadge">Idle</span>
+            </div>
+        </div>
+
+        <!-- Main Workspace Grid -->
+        <main class="main-content">
+            <!-- Left Panel / Scanner Viewport -->
+            <section class="scanner-section">
+                <div class="scanner-card glass-panel">
+                    <div class="card-header">
+                        <div class="status-indicator">
+                            <span class="pulse-dot" id="statusDot"></span>
+                            <span class="status-text" id="statusText">Camera Ready</span>
+                        </div>
+                        <div class="camera-controls">
+                            <button id="torchToggleBtn" class="glass-btn small-btn" disabled title="Toggle Flashlight">
+                                <i class="icon-zap"></i> <span>Torch</span>
+                            </button>
+                            <button id="flipCameraBtn" class="glass-btn small-btn" title="Flip Camera">
+                                <i class="icon-refresh-cw"></i> <span>Switch</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Video Viewfinder Wrapper -->
+                    <div class="viewport-wrapper" id="viewportWrapper">
+                        <div id="reader" class="scanner-viewport"></div>
+                        
+                        <!-- HUD Scanner Overlay Frame -->
+                        <div class="scanner-overlay" id="scannerOverlay">
+                            <div class="corner top-left"></div>
+                            <div class="corner top-right"></div>
+                            <div class="corner bottom-left"></div>
+                            <div class="corner bottom-right"></div>
+                            <div class="laser-beam" id="laserBeam"></div>
+                            <div class="target-guide">
+                                <i class="icon-scan"></i>
+                                <span>Align barcode inside rectangle</span>
+                            </div>
+                        </div>
+
+                        <!-- Fallback / Camera Permission Prompt Overlay -->
+                        <div class="camera-placeholder" id="cameraPlaceholder">
+                            <div class="placeholder-content">
+                                <div class="pulse-ring">
+                                    <i class="icon-camera"></i>
+                                </div>
+                                <h3>Camera Scanner Idle</h3>
+                                <p>Allow camera permissions to start scanning barcodes live in real-time.</p>
+                                <button id="startScanBtn" class="primary-btn pulse-glow">
+                                    <i class="icon-camera"></i> Start Camera Scan
+                                </button>
+                                <div class="upload-option">
+                                    <span>or scan image file</span>
+                                    <label for="imageFileInput" class="secondary-btn">
+                                        <i class="icon-image"></i> Upload Image
+                                    </label>
+                                    <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Action Toolbar under Viewport -->
+                    <div class="scanner-footer">
+                        <div class="manual-input-bar">
+                            <div class="input-wrapper">
+                                <i class="icon-barcode"></i>
+                                <input type="text" id="manualBarcodeInput" placeholder="Or enter barcode manually (e.g. 5449000000996)" autocomplete="off">
+                            </div>
+                            <button id="manualLookupBtn" class="accent-btn">
+                                <i class="icon-search"></i> Lookup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preset Sample Barcodes Interactive Strip (For quick testing) -->
+                <div class="sample-barcodes-card glass-panel">
+                    <div class="panel-title">
+                        <i class="icon-flask-conical"></i>
+                        <span>Test Samples (Click to simulate instant scan)</span>
+                    </div>
+                    <div class="sample-chips-grid">
+                        <button class="sample-chip" data-code="5449000000996">
+                            <span class="sample-name">Coca-Cola Original 330ml</span>
+                            <span class="sample-code">5449000000996</span>
+                        </button>
+                        <button class="sample-chip" data-code="3017620422003">
+                            <span class="sample-name">Nutella Hazelnut Spread</span>
+                            <span class="sample-code">3017620422003</span>
+                        </button>
+                        <button class="sample-chip" data-code="7622210449283">
+                            <span class="sample-name">Oreo Original Cookies</span>
+                            <span class="sample-code">7622210449283</span>
+                        </button>
+                        <button class="sample-chip" data-code="8715700421377">
+                            <span class="sample-name">Heinz Tomato Ketchup</span>
+                            <span class="sample-code">8715700421377</span>
+                        </button>
+                        <button class="sample-chip" data-code="5000159461122">
+                            <span class="sample-name">Snickers Chocolate Bar</span>
+                            <span class="sample-code">5000159461122</span>
+                        </button>
+                        <button class="sample-chip" data-code="012000000133">
+                            <span class="sample-name">Pepsi Cola Can (UPC-A)</span>
+                            <span class="sample-code">012000000133</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel / Details & History -->
+            <section class="details-section">
+                <!-- Product Information Result Card -->
+                <div class="product-result-card glass-panel" id="productResultCard">
+                    <div class="card-title-bar">
+                        <h2><i class="icon-package-check"></i> Scanned Product</h2>
+                        <span class="format-badge" id="scannedFormatBadge">EAN-13</span>
+                    </div>
+
+                    <!-- Idle Empty State -->
+                    <div class="product-empty-state" id="productEmptyState">
+                        <div class="empty-icon">
+                            <i class="icon-scan-line"></i>
+                        </div>
+                        <h3>No Product Scanned Yet</h3>
+                        <p>Point your camera at a barcode, upload an image, or click one of the test sample chips above to retrieve product details.</p>
+                    </div>
+
+                    <!-- Active Result State (Hidden by default) -->
+                    <div class="product-details-content hidden" id="productDetailsContent">
+                        <div class="product-hero">
+                            <div class="product-image-frame">
+                                <img id="productImage" src="" alt="Product Image" loading="lazy">
+                                <div class="image-placeholder" id="productImgFallback">
+                                    <i class="icon-package"></i>
+                                </div>
+                            </div>
+                            <div class="product-hero-meta">
+                                <span class="brand-tag" id="productBrand">Brand Name</span>
+                                <h3 class="product-title" id="productTitle">Product Name Here</h3>
+                                <div class="code-pill">
+                                    <i class="icon-barcode"></i>
+                                    <span id="productBarcode">0000000000000</span>
+                                    <button class="copy-code-btn" id="copyCodeBtn" title="Copy Code">
+                                        <i class="icon-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Product Highlights Grid -->
+                        <div class="meta-grid">
+                            <div class="meta-item">
+                                <span class="meta-label">Category</span>
+                                <span class="meta-value" id="productCategory">General Goods</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Nutri-Score</span>
+                                <span class="meta-value score-badge" id="nutriScore">--</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Eco-Score</span>
+                                <span class="meta-value score-badge" id="ecoScore">--</span>
+                            </div>
+                            <div class="meta-item">
+                                <span class="meta-label">Quantity / Size</span>
+                                <span class="meta-value" id="productQuantity">--</span>
+                            </div>
+                        </div>
+
+                        <!-- External Search Action Buttons -->
+                        <div class="external-links-row">
+                            <a href="#" id="linkGoogle" target="_blank" rel="noopener" class="ext-btn">
+                                <i class="icon-search"></i> Google Search
+                            </a>
+                            <a href="#" id="linkAmazon" target="_blank" rel="noopener" class="ext-btn">
+                                <i class="icon-shopping-cart"></i> Amazon
+                            </a>
+                            <a href="#" id="linkOpenFood" target="_blank" rel="noopener" class="ext-btn">
+                                <i class="icon-external-link"></i> Open Food Facts
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Scan History Log -->
+                <div class="history-card glass-panel">
+                    <div class="history-header">
+                        <div class="history-title">
+                            <i class="icon-history"></i>
+                            <h3>Scan History</h3>
+                            <span class="badge" id="historyCount">0</span>
+                        </div>
+                        <div class="history-actions">
+                            <button id="exportCsvBtn" class="small-btn glass-btn" title="Export to CSV">
+                                <i class="icon-download"></i> CSV
+                            </button>
+                            <button id="clearHistoryBtn" class="small-btn glass-btn danger-hover" title="Clear History">
+                                <i class="icon-trash-2"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="history-list-container" id="historyListContainer">
+                        <div class="history-empty" id="historyEmptyState">
+                            <i class="icon-clock"></i>
+                            <p>Scanned items will automatically save here.</p>
+                        </div>
+                        <ul class="history-list" id="historyList"></ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+        
+        <!-- Toast Notification floating container -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <!-- Third Party CDN Libraries -->
+    <!-- HTML5 QR Code & Barcode Scanner Engine -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    
+    <!-- Application Modules -->
+    <script src="js/audio.js"></script>
+    <script src="js/product-lookup.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
