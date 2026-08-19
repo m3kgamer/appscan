@@ -108,24 +108,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function triggerScanFlashEffect() {
+        const overlay = document.getElementById('scanFlashOverlay');
+        if (overlay) {
+            overlay.classList.remove('trigger-flash');
+            void overlay.offsetWidth; // Trigger reflow
+            overlay.classList.add('trigger-flash');
+        }
+    }
+
     function startRearCamera(specificDeviceId = null) {
         if (html5QrcodeScanner) {
             try { html5QrcodeScanner.clear(); } catch(e){}
         }
 
-        html5QrcodeScanner = new Html5Qrcode("reader");
+        // Support ALL 1D product barcodes & 2D codes explicitly across entire frame
+        const formatsToSupport = [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+            Html5QrcodeSupportedFormats.QR_CODE
+        ];
+
+        html5QrcodeScanner = new Html5Qrcode("reader", {
+            formatsToSupport: formatsToSupport,
+            verbose: false
+        });
 
         const config = {
-            fps: 15,
-            qrbox: { width: 280, height: 180 },
-            aspectRatio: 1.333333,
+            fps: 25,
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+                // Expanded 90% full-viewport scanning box for instant detection anywhere on screen
+                return {
+                    width: Math.floor(viewfinderWidth * 0.9),
+                    height: Math.floor(viewfinderHeight * 0.85)
+                };
+            },
             experimentalFeatures: {
                 useBarCodeDetectorIfSupported: true
             }
         };
 
-        // Always target rear camera environment mode
-        const cameraConstraint = specificDeviceId ? specificDeviceId : { facingMode: "environment" };
+        // Target rear camera environment mode
+        const cameraConstraint = specificDeviceId ? { deviceId: { exact: specificDeviceId } } : { facingMode: "environment" };
 
         html5QrcodeScanner.start(
             cameraConstraint,
@@ -136,29 +167,37 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             cameraPlaceholder.classList.add('hidden');
             statusDot.classList.add('active');
-            statusText.textContent = "Rear Camera Active";
+            statusText.textContent = "Rear Scanner Active";
             showToast("Rear camera scanning active", "info");
             torchToggleBtn.disabled = false;
         }).catch(err => {
             console.warn("FacingMode environment fallback to device list:", err);
-            if (cameraDevices && cameraDevices.length > 0) {
-                const devId = cameraDevices[activeCameraIdx].id;
-                html5QrcodeScanner.start(devId, config, onScanSuccess, onScanFailure)
-                    .then(() => {
-                        isScanning = true;
-                        cameraPlaceholder.classList.add('hidden');
-                        statusDot.classList.add('active');
-                        statusText.textContent = "Rear Camera Active";
-                        torchToggleBtn.disabled = false;
-                    })
-                    .catch(e => {
-                        showToast("Failed to start rear camera stream.", "error");
-                        statusText.textContent = "Camera Error";
-                    });
-            } else {
-                showToast("Failed to start rear camera.", "error");
-                statusText.textContent = "Camera Error";
-            }
+            // Fallback without exact facingMode constraint
+            html5QrcodeScanner.start(
+                { facingMode: "user" }, // Backup try
+                config,
+                onScanSuccess,
+                onScanFailure
+            ).catch(e => {
+                if (cameraDevices && cameraDevices.length > 0) {
+                    const devId = cameraDevices[activeCameraIdx].id;
+                    html5QrcodeScanner.start(devId, config, onScanSuccess, onScanFailure)
+                        .then(() => {
+                            isScanning = true;
+                            cameraPlaceholder.classList.add('hidden');
+                            statusDot.classList.add('active');
+                            statusText.textContent = "Rear Scanner Active";
+                            torchToggleBtn.disabled = false;
+                        })
+                        .catch(err2 => {
+                            showToast("Failed to start camera stream.", "error");
+                            statusText.textContent = "Camera Error";
+                        });
+                } else {
+                    showToast("Failed to start camera stream.", "error");
+                    statusText.textContent = "Camera Error";
+                }
+            });
         });
     }
 
@@ -167,13 +206,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --------------------------------------------------------------------------
     function onScanSuccess(decodedText, decodedResult) {
         const now = Date.now();
-        // Cooldown buffer of 2 seconds for exact same barcode to prevent spamming
-        if (decodedText === lastScannedCode && (now - lastScanTime) < 2000) {
+        // Cooldown buffer of 1.5 seconds for exact same barcode to prevent spamming
+        if (decodedText === lastScannedCode && (now - lastScanTime) < 1500) {
             return;
         }
 
         lastScannedCode = decodedText;
         lastScanTime = now;
+
+        // Visual Green Radial Flash Overlay Effect
+        triggerScanFlashEffect();
 
         // Sound & Haptic Feedback
         window.soundEngine.playSuccessBeep();
