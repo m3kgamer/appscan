@@ -55,6 +55,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const webhookStatusDot = document.getElementById('webhookStatusDot');
     const webhookResponseBadge = document.getElementById('webhookResponseBadge');
 
+    // Color Barcode Enhancer Controls
+    const colorFilterBtn = document.getElementById('colorFilterBtn');
+    const colorFilterLabel = document.getElementById('colorFilterLabel');
+    const colorFilterModes = [
+        { name: 'Color Boost', class: 'filter-colorboost' },
+        { name: 'Contrast B&W', class: 'filter-contrast' },
+        { name: 'Inverted', class: 'filter-invert' },
+        { name: 'Normal', class: '' }
+    ];
+    let currentFilterIdx = 0;
+
     // State Variables
     let html5QrcodeScanner = null;
     let isScanning = false;
@@ -456,6 +467,21 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(code).then(() => {
             showToast("Barcode copied to clipboard!", "success");
         });
+    });
+
+    // Color Barcode Enhancer Button (For Blue, Red, Green, Yellow & Inverted Barcodes)
+    colorFilterBtn.addEventListener('click', () => {
+        currentFilterIdx = (currentFilterIdx + 1) % colorFilterModes.length;
+        const mode = colorFilterModes[currentFilterIdx];
+        const videoEl = document.querySelector('#reader video');
+
+        if (videoEl) {
+            videoEl.className = mode.class;
+        }
+
+        colorFilterLabel.textContent = mode.name;
+        colorFilterBtn.classList.toggle('active', mode.class !== '');
+        showToast(`Color Enhancement: ${mode.name}`, "info");
     });
 
     // Rear Camera Lens Cycle Button

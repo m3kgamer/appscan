@@ -356,6 +356,20 @@ body {
     object-fit: cover !important;
     width: 100% !important;
     height: 100% !important;
+    transition: filter 0.2s ease;
+}
+
+/* Color & Contrast Filters for Blue, Red, Yellow & Inverted Barcodes */
+.scanner-viewport video.filter-contrast {
+    filter: grayscale(100%) contrast(250%) brightness(115%) !important;
+}
+
+.scanner-viewport video.filter-invert {
+    filter: invert(100%) contrast(200%) !important;
+}
+
+.scanner-viewport video.filter-colorboost {
+    filter: saturate(350%) contrast(190%) !important;
 }
 
 /* HUD Overlay Frame */
