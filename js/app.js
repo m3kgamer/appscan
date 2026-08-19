@@ -79,22 +79,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isScanning) return;
 
         try {
-            statusText.textContent = "Initializing camera...";
+            statusText.textContent = "Starting rear camera...";
             
-            // Fetch available video input devices
-            cameraDevices = await Html5Qrcode.getCameras();
+            // Query video input devices to filter ONLY rear/environment cameras
+            try {
+                const allCameras = await Html5Qrcode.getCameras();
+                if (allCameras && allCameras.length > 0) {
+                    // Exclude any front / user / selfie cameras completely
+                    const rearCameras = allCameras.filter(device => {
+                        const label = (device.label || '').toLowerCase();
+                        return !label.includes('front') && !label.includes('user') && !label.includes('selfie');
+                    });
 
-            if (cameraDevices && cameraDevices.length > 0) {
-                // Prefer back camera if available
-                const backCam = cameraDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment'));
-                activeCameraIdx = backCam ? cameraDevices.indexOf(backCam) : 0;
-                currentCameraId = cameraDevices[activeCameraIdx].id;
-
-                startHtml5Qrcode(currentCameraId);
-            } else {
-                showToast("No camera devices detected.", "error");
-                statusText.textContent = "No Camera Found";
+                    cameraDevices = rearCameras.length > 0 ? rearCameras : allCameras;
+                    activeCameraIdx = 0;
+                }
+            } catch (e) {
+                console.log("Camera device enumeration skipped:", e);
             }
+
+            // Lock scanner to rear (environment) camera strictly
+            startRearCamera();
+
         } catch (err) {
             console.error("Camera access error:", err);
             showToast("Camera access denied or unsecure environment (HTTPS required).", "error");
@@ -102,9 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function startHtml5Qrcode(cameraId) {
+    function startRearCamera(specificDeviceId = null) {
         if (html5QrcodeScanner) {
-            html5QrcodeScanner.clear();
+            try { html5QrcodeScanner.clear(); } catch(e){}
         }
 
         html5QrcodeScanner = new Html5Qrcode("reader");
@@ -118,8 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        // Always target rear camera environment mode
+        const cameraConstraint = specificDeviceId ? specificDeviceId : { facingMode: "environment" };
+
         html5QrcodeScanner.start(
-            cameraId,
+            cameraConstraint,
             config,
             onScanSuccess,
             onScanFailure
@@ -127,22 +136,29 @@ document.addEventListener('DOMContentLoaded', () => {
             isScanning = true;
             cameraPlaceholder.classList.add('hidden');
             statusDot.classList.add('active');
-            statusText.textContent = "Scanning Active";
-            showToast("Camera scanning active", "info");
-
-            // Check torch support
-            try {
-                const capabilities = html5QrcodeScanner.getRunningTrackCapabilities();
-                if (capabilities && capabilities.torch) {
-                    torchToggleBtn.disabled = false;
-                }
-            } catch (e) {
-                torchToggleBtn.disabled = true;
-            }
+            statusText.textContent = "Rear Camera Active";
+            showToast("Rear camera scanning active", "info");
+            torchToggleBtn.disabled = false;
         }).catch(err => {
-            console.error("Failed to start camera:", err);
-            showToast("Failed to start camera stream.", "error");
-            statusText.textContent = "Camera Error";
+            console.warn("FacingMode environment fallback to device list:", err);
+            if (cameraDevices && cameraDevices.length > 0) {
+                const devId = cameraDevices[activeCameraIdx].id;
+                html5QrcodeScanner.start(devId, config, onScanSuccess, onScanFailure)
+                    .then(() => {
+                        isScanning = true;
+                        cameraPlaceholder.classList.add('hidden');
+                        statusDot.classList.add('active');
+                        statusText.textContent = "Rear Camera Active";
+                        torchToggleBtn.disabled = false;
+                    })
+                    .catch(e => {
+                        showToast("Failed to start rear camera stream.", "error");
+                        statusText.textContent = "Camera Error";
+                    });
+            } else {
+                showToast("Failed to start rear camera.", "error");
+                statusText.textContent = "Camera Error";
+            }
         });
     }
 
@@ -400,30 +416,64 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Camera Switcher
+    // Rear Camera Lens Cycle Button
     flipCameraBtn.addEventListener('click', () => {
         if (cameraDevices.length > 1) {
             activeCameraIdx = (activeCameraIdx + 1) % cameraDevices.length;
-            currentCameraId = cameraDevices[activeCameraIdx].id;
-            startHtml5Qrcode(currentCameraId);
+            const nextDev = cameraDevices[activeCameraIdx];
+            showToast(`Switching to Rear Lens: ${nextDev.label || ('Lens ' + (activeCameraIdx + 1))}`, "info");
+            startRearCamera(nextDev.id);
         } else {
-            showToast("Only 1 camera detected on device.", "info");
+            showToast("Targeting primary Rear Camera.", "info");
+            startRearCamera();
         }
     });
 
-    // Torch Toggle
+    // Multi-Layer Flashlight / Torch Toggle
     let torchState = false;
-    torchToggleBtn.addEventListener('click', () => {
-        if (html5QrcodeScanner && isScanning) {
-            torchState = !torchState;
-            html5QrcodeScanner.applyVideoConstraints({
-                advanced: [{ torch: torchState }]
-            }).then(() => {
-                torchToggleBtn.classList.toggle('active', torchState);
-            }).catch(err => {
-                showToast("Flashlight unavailable", "error");
-            });
+    torchToggleBtn.addEventListener('click', async () => {
+        if (!isScanning) {
+            showToast("Start camera scan first to toggle flash", "error");
+            return;
         }
+
+        torchState = !torchState;
+
+        // Method 1: HTML5Qrcode video constraint application
+        try {
+            await html5QrcodeScanner.applyVideoConstraints({
+                advanced: [{ torch: torchState }]
+            });
+            torchToggleBtn.classList.toggle('active', torchState);
+            showToast(torchState ? "Flashlight ON" : "Flashlight OFF", "success");
+            return;
+        } catch (e) {
+            console.log("HTML5Qrcode constraint failed, trying direct video track:", e);
+        }
+
+        // Method 2: Direct DOM MediaStreamTrack access
+        try {
+            const videoEl = document.querySelector('#reader video');
+            if (videoEl && videoEl.srcObject) {
+                const stream = videoEl.srcObject;
+                const tracks = stream.getVideoTracks();
+                if (tracks && tracks.length > 0) {
+                    const track = tracks[0];
+                    await track.applyConstraints({
+                        advanced: [{ torch: torchState }]
+                    });
+                    torchToggleBtn.classList.toggle('active', torchState);
+                    showToast(torchState ? "Flashlight ON" : "Flashlight OFF", "success");
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error("Direct track torch error:", err);
+        }
+
+        // Fallback error handling if torch is not physically supported on device/browser
+        torchState = !torchState;
+        showToast("Flashlight not supported on this camera/browser", "error");
     });
 
     // Sound & Vibration Toggles
