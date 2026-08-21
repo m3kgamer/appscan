@@ -276,7 +276,8 @@ document.addEventListener('DOMContentLoaded', () => {
             product_name: productData.title || "",
             brand: productData.brand || "",
             category: productData.category || "",
-            quantity: productData.quantity || "",
+            quantity: 1,
+            package_size: productData.quantity || "",
             scanned_at: new Date().toISOString(),
             source: "OmniScan Pro Web App"
         };
